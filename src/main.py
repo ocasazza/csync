@@ -2,17 +2,20 @@
 # -*- coding: utf-8 -*-
 
 """
-csync - A command line program used to move around confluence pages in bulk.
+CSync - A command line program for Confluence page management.
 
 This module serves as the entry point for the application.
 """
 
 import sys
-from csync.cli.commands import cli
+from src.cli.commands import cli
+from src.utils.config import load_config
 
 
 def main():
     """Main entry point for the application."""
+    # Load configuration from .env file and environment variables
+    load_config()
     return cli()
 
 

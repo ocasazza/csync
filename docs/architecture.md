@@ -110,9 +110,10 @@ The storage layer manages the local file system representation of Confluence pag
 
 Configuration is loaded from:
 
-1. Environment variables
-2. Configuration files in standard locations
-3. Command-line arguments
+1. Environment variables from .env file (if present)
+2. System environment variables
+3. Configuration files in standard locations
+4. Command-line arguments
 
 Priority is given to command-line arguments, then environment variables, then configuration files.
 

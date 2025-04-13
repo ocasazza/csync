@@ -8,9 +8,9 @@ This module defines the CLI commands and options for the csync application.
 
 import os
 import click
-from csync.api.client import ConfluenceClient
-from csync.sync.engine import SyncEngine
-from csync.utils.config import load_config
+from src.api.client import ConfluenceClient
+from src.sync.engine import SyncEngine
+from src.utils.config import load_config
 
 
 @click.group()

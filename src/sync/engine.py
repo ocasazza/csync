@@ -13,8 +13,8 @@ from typing import Optional
 
 from tqdm import tqdm
 
-from csync.api.client import ConfluenceClient
-from csync.storage.fs import LocalStorage
+from src.api.client import ConfluenceClient
+from src.storage.fs import LocalStorage
 
 logger = logging.getLogger(__name__)
 

@@ -11,14 +11,24 @@ import json
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+from dotenv import load_dotenv
+
 
 def load_config() -> Dict[str, Any]:
     """
     Load configuration from environment variables and/or config file.
     
+    This function will:
+    1. Load environment variables from .env file if it exists
+    2. Load from system environment variables
+    3. Load from config file if it exists
+    
     Returns:
         Dict[str, Any]: A dictionary containing configuration values.
     """
+    # Load environment variables from .env file
+    load_dotenv()
+    
     config = {}
     
     # Load from environment variables

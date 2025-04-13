@@ -20,7 +20,7 @@ A command line program for synchronizing Confluence pages with a local file syst
 ### From Source
 
 ```sh
-git clone https://github.com/example/csync.git
+git clone https://github.com/ocasazza/csync.git
 cd csync
 pip install -e .
 ```
@@ -33,7 +33,7 @@ pip install csync
 
 ## Configuration
 
-CSync can be configured using environment variables or a configuration file:
+CSync can be configured using environment variables, a .env file, or a configuration file:
 
 ### Environment Variables
 
@@ -41,6 +41,16 @@ CSync can be configured using environment variables or a configuration file:
 export CONFLUENCE_URL="https://your-instance.atlassian.net"
 export CONFLUENCE_USERNAME="your-email@example.com"
 export ATLASSIAN_TOKEN="your-api-token"
+```
+
+### .env File
+
+Create a `.env` file in your current directory:
+
+```
+CONFLUENCE_URL=https://your-instance.atlassian.net
+CONFLUENCE_USERNAME=your-email@example.com
+ATLASSIAN_TOKEN=your-api-token
 ```
 
 ### Configuration File

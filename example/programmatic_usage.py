@@ -8,17 +8,20 @@ This script demonstrates how to use the csync library in your own Python code,
 rather than through the command-line interface.
 """
 
-import os
-from csync.api.client import ConfluenceClient
-from csync.sync.engine import SyncEngine
+from src.api.client import ConfluenceClient
+from src.sync.engine import SyncEngine
+from src.utils.config import load_config
 
 
 def main():
     """Demonstrate programmatic usage of csync."""
-    # Configuration
-    confluence_url = os.environ.get("CONFLUENCE_URL")
-    username = os.environ.get("CONFLUENCE_USERNAME")
-    token = os.environ.get("ATLASSIAN_TOKEN")
+    # Load configuration from .env file and environment variables
+    config = load_config()
+    
+    # Configuration (will be loaded from .env file if available)
+    confluence_url = config.get("CONFLUENCE_URL")
+    username = config.get("CONFLUENCE_USERNAME")
+    token = config.get("ATLASSIAN_TOKEN")
     
     # Source and destination
     # Example Confluence page URL

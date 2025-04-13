@@ -10,9 +10,9 @@ file system.
 __version__ = "0.1.0"
 
 # Import main components for easier access
-from csync.api.client import ConfluenceClient
-from csync.sync.engine import SyncEngine
-from csync.storage.fs import LocalStorage
+from src.api.client import ConfluenceClient
+from src.sync.engine import SyncEngine
+from src.storage.fs import LocalStorage
 
 # Define public API
 __all__ = [
