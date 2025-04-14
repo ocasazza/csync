@@ -8,7 +8,7 @@ This module provides functions for interacting with the local file system.
 
 import json
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 
 
 class LocalStorage:
@@ -28,7 +28,58 @@ class LocalStorage:
         self.base_dir.mkdir(parents=True, exist_ok=True)
         self.metadata_dir.mkdir(parents=True, exist_ok=True)
 
-    def get_page_dir(self, page_id: str, title: str) -> Path:
+        # Initialize or load the ID-to-path mapping
+        self.id_map_file = self.metadata_dir / "id_map.json"
+        if self.id_map_file.exists():
+            with open(self.id_map_file, "r", encoding="utf-8") as f:
+                self.id_map = json.load(f)
+        else:
+            self.id_map = {}
+
+    def get_page_dir_by_id(self, page_id: str) -> Optional[Path]:
+        """
+        Get the directory for a page by its ID.
+
+        Args:
+            page_id: The ID of the page.
+
+        Returns:
+            The path to the page directory, or None if not found.
+        """
+        # Check the ID-to-path mapping
+        if page_id in self.id_map:
+            path = Path(self.id_map[page_id])
+            if path.exists():
+                return path
+
+        # If not found in map or path doesn't exist, search all metadata files
+        for metadata_file in self.base_dir.glob("**/metadata.json"):
+            try:
+                with open(metadata_file, "r", encoding="utf-8") as f:
+                    metadata = json.load(f)
+                    if metadata.get("id") == page_id:
+                        # Update the map with the found path
+                        path = metadata_file.parent
+                        self.update_id_map(page_id, str(path))
+                        return path
+            except:
+                continue
+
+        return None
+
+    def update_id_map(self, page_id: str, path: str) -> None:
+        """
+        Update the ID-to-path mapping.
+
+        Args:
+            page_id: The ID of the page.
+            path: The path to the page directory.
+        """
+        self.id_map[page_id] = path
+        with open(self.id_map_file, "w", encoding="utf-8") as f:
+            json.dump(self.id_map, f, indent=2, ensure_ascii=False)
+
+    def get_page_dir(self, title: str) -> Path:
         """
         Get the directory for a page.
 
@@ -46,7 +97,7 @@ class LocalStorage:
         page_dir = self.base_dir / safe_title
         return page_dir
 
-    def get_child_dir(self, parent_dir: Path, page_id: str, title: str) -> Path:
+    def get_child_dir(self, parent_dir: Path, title: str) -> Path:
         """
         Get the directory for a child page.
 
@@ -128,99 +179,6 @@ class LocalStorage:
 
         with open(content_file, "r", encoding="utf-8") as f:
             return f.read()
-
-    def save_attachment(self, page_dir: Path, filename: str, content: bytes) -> Path:
-        """
-        Save an attachment.
-
-        Args:
-            page_dir: The directory of the page.
-            filename: The name of the attachment.
-            content: The binary content of the attachment.
-
-        Returns:
-            The path to the saved attachment.
-        """
-        # Create the attachments directory if it doesn't exist
-        attachments_dir = page_dir / "attachments"
-        attachments_dir.mkdir(parents=True, exist_ok=True)
-
-        # Write the attachment to a file
-        attachment_path = attachments_dir / filename
-        with open(attachment_path, "wb") as f:
-            f.write(content)
-
-        return attachment_path
-
-    def get_attachment_path(self, page_dir: Path, filename: str) -> Path:
-        """
-        Get the path to an attachment.
-
-        Args:
-            page_dir: The directory of the page.
-            filename: The name of the attachment.
-
-        Returns:
-            The path to the attachment.
-        """
-        return page_dir / "attachments" / filename
-
-    def list_attachments(self, page_dir: Path) -> List[str]:
-        """
-        List the attachments of a page.
-
-        Args:
-            page_dir: The directory of the page.
-
-        Returns:
-            A list of attachment filenames.
-        """
-        attachments_dir = page_dir / "attachments"
-        if not attachments_dir.exists():
-            return []
-
-        return [f.name for f in attachments_dir.iterdir() if f.is_file()]
-
-    def list_child_pages(self, page_dir: Path) -> List[Path]:
-        """
-        List the child pages of a page.
-
-        Args:
-            page_dir: The directory of the page.
-
-        Returns:
-            A list of child page directories.
-        """
-        children_dir = page_dir / "children"
-        if not children_dir.exists():
-            return []
-
-        return [d for d in children_dir.iterdir() if d.is_dir()]
-
-    def save_global_metadata(self, metadata: Dict[str, Any]) -> None:
-        """
-        Save global metadata.
-
-        Args:
-            metadata: The global metadata.
-        """
-        metadata_path = self.metadata_dir / "metadata.json"
-        with open(metadata_path, "w", encoding="utf-8") as f:
-            json.dump(metadata, f, indent=2, ensure_ascii=False)
-
-    def get_global_metadata(self) -> Optional[Dict[str, Any]]:
-        """
-        Get global metadata.
-
-        Returns:
-            The global metadata, or None if not found.
-        """
-        metadata_file = self.metadata_dir / "metadata.json"
-        if not metadata_file.exists():
-            return None
-
-        with open(metadata_file, "r", encoding="utf-8") as f:
-            return json.load(f)
 
     def _sanitize_filename(self, filename: str) -> str:
         """

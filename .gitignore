@@ -54,3 +54,4 @@ venv.bak/
 # Project specific
 confluence_pages/
 test_storage/
+data/
