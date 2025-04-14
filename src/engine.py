@@ -56,6 +56,25 @@ class SyncEngine:
             client=client, show_progress=show_progress, recurse=recurse, dry_run=dry_run
         )
 
+    def push(self, source: str, destination: str) -> None:
+        """
+        Push local pages to Confluence.
+
+        Args:
+            source: The local directory containing the pages to push.
+            destination: The URL of the Confluence page or space to push to.
+        """
+        # Parse the destination URL to get page ID or space key
+        parsed = self.parse_page_url(destination)
+        push_root_page_id = parsed["page_id"]
+
+        # Push to the specified parent page
+        self.push_ops.push_page_tree(
+            storage=LocalStorage(source),
+            local_dir=Path(source),
+            parent_id=push_root_page_id,
+        )
+
     def pull(self, source: str, destination: str) -> Dict[str, int]:
         """
         Pull Confluence pages to local storage using tree-based sync strategy.
@@ -125,6 +144,58 @@ class SyncEngine:
             logger.info("Dry run - no changes made")
 
         return sync_plan["stats"]
+
+    def parse_page_url(self, url: str) -> Dict[str, str]:
+        """
+        Parse a Confluence page URL to extract space key and page title/ID.
+
+        Args:
+            url: The URL of the Confluence page.
+
+        Returns:
+            A dictionary containing the parsed components.
+        """
+        parsed = urlparse(url)
+        path_parts = parsed.path.strip("/").split("/")
+
+        # Initialize result with defaults
+        result = {
+            "base_url": f"{parsed.scheme}://{parsed.netloc}",
+            "type": "page",
+            "space_key": None,
+            "page_id": None,
+            "title": None,
+        }
+
+        # Extract space key, page ID, and title from the URL
+        if (
+            len(path_parts) >= 3
+            and path_parts[0] == "wiki"
+            and path_parts[1] == "spaces"
+        ):
+            # Space key is always the third part
+            result["space_key"] = path_parts[2]
+
+            # Page ID and title if they exist
+            if len(path_parts) >= 5 and path_parts[3] == "pages":
+                result["page_id"] = path_parts[4]
+                if len(path_parts) >= 6:
+                    result["title"] = path_parts[5]
+
+        # Handle direct API URLs (for compatibility)
+        elif (
+            len(path_parts) >= 4
+            and path_parts[0] == "rest"
+            and path_parts[1] == "api"
+            and path_parts[2] == "content"
+        ):
+            result["page_id"] = path_parts[3]
+            # We'll need to fetch the space key from the page itself later
+
+        # Debug output
+        print(f"Final parsed result: {result}")
+
+        return result
 
     def _build_page_tree(self, page_id: str) -> Dict:
         """Build a complete tree of pages starting from the given page ID."""
@@ -275,74 +346,3 @@ class SyncEngine:
                 parent_dir=item["local_dir"].parent,
                 metadata=item["metadata"],
             )
-
-    def push(self, source: str, destination: str) -> None:
-        """
-        Push local pages to Confluence.
-
-        Args:
-            source: The local directory containing the pages to push.
-            destination: The URL of the Confluence page or space to push to.
-        """
-        # Parse the destination URL to get page ID or space key
-        parsed = self.parse_page_url(destination)
-        push_root_page_id = parsed["page_id"]
-
-        # Push to the specified parent page
-        self.push_ops.push_page_tree(
-            storage=LocalStorage(source),
-            local_dir=Path(source),
-            parent_id=push_root_page_id,
-        )
-
-    def parse_page_url(self, url: str) -> Dict[str, str]:
-        """
-        Parse a Confluence page URL to extract space key and page title/ID.
-
-        Args:
-            url: The URL of the Confluence page.
-
-        Returns:
-            A dictionary containing the parsed components.
-        """
-        parsed = urlparse(url)
-        path_parts = parsed.path.strip("/").split("/")
-
-        # Initialize result with defaults
-        result = {
-            "base_url": f"{parsed.scheme}://{parsed.netloc}",
-            "type": "page",
-            "space_key": None,
-            "page_id": None,
-            "title": None,
-        }
-
-        # Extract space key, page ID, and title from the URL
-        if (
-            len(path_parts) >= 3
-            and path_parts[0] == "wiki"
-            and path_parts[1] == "spaces"
-        ):
-            # Space key is always the third part
-            result["space_key"] = path_parts[2]
-
-            # Page ID and title if they exist
-            if len(path_parts) >= 5 and path_parts[3] == "pages":
-                result["page_id"] = path_parts[4]
-                if len(path_parts) >= 6:
-                    result["title"] = path_parts[5]
-
-        # Handle direct API URLs (for compatibility)
-        elif (
-            len(path_parts) >= 4
-            and path_parts[0] == "rest"
-            and path_parts[1] == "api"
-            and path_parts[2] == "content"
-        ):
-            result["page_id"] = path_parts[3]
-            # We'll need to fetch the space key from the page itself later
-
-        # Debug output
-        print(f"Final parsed result: {result}")
-
-        return result

@@ -11,8 +11,6 @@ from pathlib import Path
 from tqdm import tqdm
 from src.fs import LocalStorage
 from atlassian import Confluence
-from mimetypes import MimeTypes
-import urllib 
 
 logger = logging.getLogger(__name__)
 

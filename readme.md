@@ -5,15 +5,22 @@ A command line program for synchronizing Confluence pages with a local file syst
 ## Features
 
 - [x] Pull Confluence pages (and their children) to a local filesystem path.
-    - For each page the remote metadata is fetched.
-    - If the local metadata version equals the remote version, the page has not been changed and the file can be skipped. 
-    - These steps then happen recursively for all child pages such that the entire tree of child pages is fetched.
 
 - [x] Push local changes back to Confluence, creating or updating pages as needed.
 
-- [x] Local confluence representation contains version metadata, preventing unnecessary fetching of pages if no changes have been made.
+- [x] Local confluence representation contains version metadata, attachments
 
 - [x] Support for attachments, allowing files to be downloaded and uploaded along with page content.
+
+- [ ] Preserve version history (with possibilty for rollbacks)
+
+- [ ] Better support for true sync features and edge cases. Github like blocked push if remote changes are needed. 
+
+- [ ] Edit metadata (title, version, etc...) locally and have page metadata updated on the remote upon push 
+
+- [ ] Better dry run visualization
+
+- [ ] Parallelism for larger migrations
 
 ## Installation
 
