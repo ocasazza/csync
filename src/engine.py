@@ -7,9 +7,8 @@ This module provides the core functionality for syncing Confluence pages.
 """
 
 import logging
-import json
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict
 from atlassian import Confluence
 from urllib.parse import urlparse
 
@@ -49,11 +48,17 @@ class SyncEngine:
 
         # Initialize operations
         self.pull_ops = PullOperations(
-            client=client, show_progress=show_progress, recurse=recurse, dry_run=dry_run
+            client=client, 
+            show_progress=show_progress, 
+            recurse=recurse, 
+            dry_run=dry_run
         )
 
         self.push_ops = PushOperations(
-            client=client, show_progress=show_progress, recurse=recurse, dry_run=dry_run
+            client=client, 
+            show_progress=show_progress, 
+            recurse=recurse, 
+            dry_run=dry_run
         )
 
     def push(self, source: str, destination: str) -> None:
@@ -64,20 +69,23 @@ class SyncEngine:
             source: The local directory containing the pages to push.
             destination: The URL of the Confluence page or space to push to.
         """
-        # Parse the destination URL to get page ID or space key
+        # Parse the destination URL to get page ID
         parsed = self.parse_page_url(destination)
-        push_root_page_id = parsed["page_id"]
+        page_id = parsed["page_id"]
 
         # Push to the specified parent page
+        storage = LocalStorage(source)
+        local_dir = Path(source)
         self.push_ops.push_page_tree(
-            storage=LocalStorage(source),
-            local_dir=Path(source),
-            parent_id=push_root_page_id,
+            storage=storage,
+            local_dir=local_dir,
+            parent_id=page_id,
         )
 
     def pull(self, source: str, destination: str) -> Dict[str, int]:
         """
-        Pull Confluence pages to local storage using tree-based sync strategy.
+        Pull Confluence pages to local storage using a simple recursive 
+        approach.
 
         Args:
             source: The URL of the Confluence page or space to pull from.
@@ -86,64 +94,22 @@ class SyncEngine:
         Returns:
             A dictionary containing sync statistics.
         """
-        # Parse the source URL to get page ID or space key
+        # Parse the source URL to get page ID
         parsed = self.parse_page_url(source)
-
+        page_id = parsed["page_id"]
+        
         # Initialize local storage
         storage = LocalStorage(destination)
-
-        # Step 1: Build a complete tree of pages to pull
-        logger.info("Building page tree...")
-        page_tree = self._build_page_tree(parsed["page_id"])
-
-        # Step 2: Compare with local metadata to create sync plan
-        logger.info("Analyzing changes...")
-        sync_plan = self._create_sync_plan(page_tree, storage)
-
-        # Convert Path objects to strings for JSON serialization
-        serializable_plan = {
-            "to_update": [
-                {**item, "local_dir": str(item["local_dir"])}
-                for item in sync_plan["to_update"]
-            ],
-            "to_create": [
-                {
-                    **item,
-                    "parent_dir": (
-                        str(item["parent_dir"]) if item["parent_dir"] else None
-                    ),
-                }
-                for item in sync_plan["to_create"]
-            ],
-            "unchanged": sync_plan["unchanged"],
-            "to_rename": [
-                {**item, "local_dir": str(item["local_dir"])}
-                for item in sync_plan["to_rename"]
-            ],
-            "stats": sync_plan["stats"],
-        }
-
-        # Save the sync plan for resumability
-        plan_file = storage.metadata_dir / "sync_plan.json"
-        with open(plan_file, "w") as f:
-            json.dump(serializable_plan, f, indent=2)
-
-        # Step 3: Execute the sync plan
-        stats = sync_plan["stats"]
-        logger.info(
-            "Executing sync plan:\n"
-            f"  Updates: {stats['to_update']}\n"
-            f"  New: {stats['to_create']}\n"
-            f"  Renames: {stats['to_rename']}\n"
-            f"  Unchanged: {stats['unchanged']}"
-        )
-
-        if not self.dry_run:
-            self._execute_sync_plan(sync_plan, storage)
-        else:
-            logger.info("Dry run - no changes made")
-
-        return sync_plan["stats"]
+        
+        if self.dry_run:
+            logger.info(f"Dry run - would pull page tree from {page_id}")
+            return {"pulled": 0}
+        
+        # Simply pull the page tree recursively
+        logger.info(f"Pulling page tree from {page_id}")
+        self.pull_ops.pull_page_tree(page_id, storage)
+        
+        return {"pulled": 1}  # Basic stats, could be enhanced if needed
 
     def parse_page_url(self, url: str) -> Dict[str, str]:
         """
@@ -196,153 +162,3 @@ class SyncEngine:
         print(f"Final parsed result: {result}")
 
         return result
-
-    def _build_page_tree(self, page_id: str) -> Dict:
-        """Build a complete tree of pages starting from the given page ID."""
-        # Get the root page with minimal expansion to save bandwidth
-        root_page = self.client.get_page_by_id(
-            page_id,
-            expand=(
-                "body.storage,version,space,"
-                "metadata.properties.editor,"
-                "metadata.properties.emoji_title_published,"
-                "children.page"
-            ),
-        )
-
-        # Create the tree structure
-        tree = {
-            "id": root_page["id"],
-            "title": root_page["title"],
-            "version": root_page["version"]["number"],
-            "children": [],
-            "metadata": root_page,  # Store full metadata for later use
-        }
-
-        # Get all children
-        has_children = (
-            "children" in root_page
-            and "page" in root_page["children"]
-            and "results" in root_page["children"]["page"]
-        )
-        if has_children:
-            children = root_page["children"]["page"]["results"]
-            for child in children:
-                child_tree = self._build_page_tree(child["id"])
-                tree["children"].append(child_tree)
-
-        return tree
-
-    def _create_sync_plan(self, page_tree: Dict, storage: LocalStorage) -> Dict:
-        """Create a sync plan by comparing the page tree with local metadata."""
-        plan = {
-            "to_update": [],
-            "to_create": [],
-            "unchanged": [],
-            "to_rename": [],
-            "stats": {"to_update": 0, "to_create": 0, "unchanged": 0, "to_rename": 0},
-        }
-
-        # Process the tree recursively
-        self._analyze_page(page_tree, None, storage, plan)
-
-        return plan
-
-    def _analyze_page(
-        self, page: Dict, parent_dir: Optional[Path], storage: LocalStorage, plan: Dict
-    ) -> None:
-        """Analyze a page and its children to determine what actions are needed."""
-        # Check if the page exists locally by ID
-        local_dir = storage.get_page_dir_by_id(page["id"])
-
-        if not local_dir:
-            # Page doesn't exist locally, need to create it
-            plan["to_create"].append(
-                {
-                    "id": page["id"],
-                    "title": page["title"],
-                    "parent_dir": parent_dir,
-                    "metadata": page["metadata"],
-                }
-            )
-            plan["stats"]["to_create"] += 1
-
-            # For new pages, we'll need to process all children as new too
-            if parent_dir:
-                new_parent_dir = storage.get_child_dir(parent_dir, page["title"])
-            else:
-                new_parent_dir = storage.get_page_dir(page["title"])
-
-            # Process children
-            for child in page["children"]:
-                self._analyze_page(child, new_parent_dir, storage, plan)
-        else:
-            # Page exists, check if it needs updating
-            metadata = storage.get_page_metadata(local_dir)
-
-            if not metadata:
-                # Metadata missing, treat as new
-                plan["to_create"].append(
-                    {
-                        "id": page["id"],
-                        "title": page["title"],
-                        "parent_dir": parent_dir,
-                        "metadata": page["metadata"],
-                    }
-                )
-                plan["stats"]["to_create"] += 1
-            elif metadata["title"] != page["title"]:
-                # Title has changed, need to rename
-                plan["to_rename"].append(
-                    {
-                        "id": page["id"],
-                        "old_title": metadata["title"],
-                        "new_title": page["title"],
-                        "local_dir": local_dir,
-                        "metadata": page["metadata"],
-                    }
-                )
-                plan["stats"]["to_rename"] += 1
-            elif metadata["version"]["number"] < page["version"]:
-                # Version is older, need to update
-                plan["to_update"].append(
-                    {
-                        "id": page["id"],
-                        "title": page["title"],
-                        "local_dir": local_dir,
-                        "metadata": page["metadata"],
-                    }
-                )
-                plan["stats"]["to_update"] += 1
-            else:
-                # No changes needed
-                plan["unchanged"].append({"id": page["id"], "title": page["title"]})
-                plan["stats"]["unchanged"] += 1
-
-            # Process children
-            for child in page["children"]:
-                self._analyze_page(child, local_dir, storage, plan)
-
-    def _execute_sync_plan(self, plan: Dict, storage: LocalStorage) -> None:
-        """Execute the sync plan."""
-        # First handle renames to avoid conflicts
-        for item in plan["to_rename"]:
-            self.pull_ops.handle_renamed_page(item["id"], item["new_title"], storage)
-
-        # Then create new pages
-        for item in plan["to_create"]:
-            self.pull_ops.pull_page(
-                page_id=item["id"],
-                storage=storage,
-                parent_dir=item["parent_dir"],
-                metadata=item["metadata"],
-            )
-
-        # Finally update existing pages
-        for item in plan["to_update"]:
-            self.pull_ops.pull_page(
-                page_id=item["id"],
-                storage=storage,
-                parent_dir=item["local_dir"].parent,
-                metadata=item["metadata"],
-            )

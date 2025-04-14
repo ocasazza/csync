@@ -109,8 +109,17 @@ class PullOperations:
             expand="body.storage,version,space,metadata.properties.editor,metadata.properties.emoji_title_published,children.page"
         )
 
+        # Check if the page exists locally and if it has been renamed
+        local_dir = storage.get_page_dir_by_id(page_id)
+        if local_dir:
+            metadata = storage.get_page_metadata(local_dir)
+            if metadata and metadata['title'] != page['title']:
+                # Handle rename
+                logger.info(f"Detected renamed page: {metadata['title']} -> {page['title']}")
+                local_dir = self.handle_renamed_page(page_id, page['title'], storage)
+
         # Pull the page itself
-        page_dir = self.pull_page(page_id, storage, parent_dir)
+        page_dir = self.pull_page(page_id, storage, parent_dir, metadata=page)
 
         # Pull children if recursive mode is enabled
         if self.recurse:
@@ -134,20 +143,17 @@ class PullOperations:
             return
 
         # Get all child pages
-        children = self.client.get_page_child_by_type(page_id, type='page')
-
-        if not children or 'results' not in children or not children['results']:
-            return
+        children = self.client.get_child_pages(page_id=page_id)
 
         # Create a progress bar if enabled
         if self.show_progress:
             children_iter = tqdm(
-                children['results'],
+                children,
                 desc="Pulling child pages",
                 unit="page"
             )
         else:
-            children_iter = children['results']
+            children_iter = children
 
         # Process each child page
         for child in children_iter:
