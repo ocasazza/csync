@@ -11,6 +11,7 @@ from pathlib import Path
 from tqdm import tqdm
 from src.fs import LocalStorage
 from atlassian import Confluence
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -54,16 +55,17 @@ class PushOperations:
         Returns:
             The ID of the created/updated page.
         """
-        if self.dry_run:
-            print(f"[DRY RUN]: push_page({local_dir}, {parent_id})")
 
-        content = storage.get_page_content(local_dir)
+        content = storage.get_page_content(local_dir) or "<p>todo</p>"
         metadata = storage.get_page_metadata(local_dir)
 
         assert content != "" and content is not None
         assert "title" in metadata
 
         print(f"[push_page]: local_dir: {local_dir}, parent_id: {parent_id}")
+
+        if self.dry_run:
+            print(f"[DRY RUN]: push_page({local_dir}, {parent_id})")
 
         created_page = None
         try:
@@ -76,6 +78,24 @@ class PushOperations:
                 editor="v2",
                 full_width=True,
             )
+
+
+            # todo should be a storage layer metadata function
+            emoji = metadata["metadata"]["properties"]["emoji-title-published"]
+            del emoji["id"]
+            del emoji["version"]
+            del emoji["_expandable"]
+            del emoji["_links"]
+
+            self.client.update_page_property(
+                created_page["id"],  emoji
+            )
+
+            # todo: similar to emoji but we probably need to sanitize even more fields
+            # self.client.update_page_property(
+            #     created_page["id"],  metadata["version"]
+            # )
+
         except Exception as e:
             logger.error(f"Failed to create/update page: {str(e)}")
             return ""
@@ -115,7 +135,7 @@ class PushOperations:
                 # Get all child directories
                 child_dirs = [d for d in children_dir.iterdir() if d.is_dir()]
                 print(f"[push_page_tree] child_dirs: {child_dirs}")
-                
+
                 # Create a progress bar if enabled
                 if self.show_progress and child_dirs:
                     child_dirs_iter = tqdm(
@@ -126,13 +146,6 @@ class PushOperations:
 
                 # Process each child directory using the new parent info
                 for child_dir in child_dirs_iter:
-                    # Strip child metadata to bare minimum
-                    child_metadata = storage.get_page_metadata(child_dir)
-                    if child_metadata:
-                        storage.save_page_metadata(
-                            child_dir,
-                            {"type": "page", "title": child_metadata["title"]},
-                        )
                     # Push child with new parent ID
                     self.push_page_tree(storage, child_dir, page_id)
 

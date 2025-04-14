@@ -110,7 +110,7 @@ class PullOperations:
         )
 
         # Pull the page itself
-        page_dir = self.pull_page(page_id, storage, parent_dir, metadata=page)
+        page_dir = self.pull_page(page_id, storage, parent_dir)
 
         # Pull children if recursive mode is enabled
         if self.recurse:
