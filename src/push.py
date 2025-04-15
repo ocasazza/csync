@@ -258,6 +258,7 @@ class PushOperations:
                 with open(attachment_path, "rb") as file:
                     self.client.attach_content(
                         name=file_name,
+                        comment="uploaded by csync",
                         content=file.read(),
                         page_id=page_id,
                     )
