@@ -7,13 +7,18 @@ This module provides functionality for pulling Confluence pages to local storage
 """
 
 import logging
+import io
+import sys
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Dict, Tuple
 from tqdm import tqdm
 from src.fs import LocalStorage
 from atlassian import Confluence
 
 logger = logging.getLogger(__name__)
+
+# Configure tqdm to work properly with terminal output
+tqdm.monitor_interval = 0  # Disable monitor thread to avoid issues
 
 
 class PullOperations:
@@ -127,6 +132,29 @@ class PullOperations:
 
         return page_dir
 
+    def collect_all_child_pages(self, page_id: str) -> List[Dict]:
+        """
+        Recursively collect all child pages of a page.
+        
+        Args:
+            page_id: The ID of the parent page.
+            
+        Returns:
+            A list of all child pages.
+        """
+        result = []
+        
+        # Get direct child pages
+        children = self.client.get_child_pages(page_id=page_id)
+        result.extend(children)
+        
+        # If recursive mode is enabled, get children of children
+        if self.recurse:
+            for child in children:
+                result.extend(self.collect_all_child_pages(child['id']))
+                
+        return result
+    
     def pull_children(
         self, page_id: str, storage: LocalStorage, parent_dir: Path
     ) -> None:
@@ -142,22 +170,49 @@ class PullOperations:
             logger.info(f"Would pull children of page {page_id}")
             return
 
-        # Get all child pages
-        children = self.client.get_child_pages(page_id=page_id)
-
-        # Create a progress bar if enabled
-        if self.show_progress:
-            children_iter = tqdm(
-                children,
-                desc="Pulling child pages",
-                unit="page"
-            )
-        else:
-            children_iter = children
-
+        # Get all child pages (direct children only, we'll handle recursion differently)
+        # Convert to list to ensure we can get the length
+        children = list(self.client.get_child_pages(page_id=page_id))
+        
+        if not children:
+            return
+            
         # Process each child page
-        for child in children_iter:
-            self.pull_page_tree(child['id'], storage, parent_dir)
+        for i, child in enumerate(children):
+            # Use a simple progress message instead of tqdm
+            if self.show_progress:
+                # Get the parent page title
+                parent_title = "Unknown"
+                try:
+                    parent_page = self.client.get_page_by_id(page_id, expand="title")
+                    parent_title = parent_page.get('title', 'Unknown')
+                except:
+                    pass
+                
+                # Clear the line and write the progress with parent info
+                sys.stdout.write(f"\rPulling child pages of '{parent_title}': {i+1}/{len(children)}")
+                sys.stdout.flush()
+                
+            # Pull the page and its children
+            child_dir = self.pull_page(child['id'], storage, parent_dir)
+            
+            # Recursively pull children if needed
+            if self.recurse:
+                self.pull_children(child['id'], storage, child_dir)
+                
+        # Print a newline after we're done
+        if self.show_progress and children:
+            # Get the parent page title if we haven't already
+            if 'parent_title' not in locals():
+                parent_title = "Unknown"
+                try:
+                    parent_page = self.client.get_page_by_id(page_id, expand="title")
+                    parent_title = parent_page.get('title', 'Unknown')
+                except Exception as e:
+                    logger.debug(f"Failed to get parent title: {e}")
+                    
+            sys.stdout.write(f"\rPulling child pages of '{parent_title}': {len(children)}/{len(children)} - Complete\n")
+            sys.stdout.flush()
 
     def handle_renamed_page(
         self, page_id: str, new_title: str, storage: LocalStorage
