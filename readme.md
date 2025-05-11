@@ -1,6 +1,8 @@
-# CSync
+# csync
 
 A command line program for synchronizing Confluence pages with a local file system.
+
+Future plans to integrate with the parser that powers [mark](https://github.com/kovetskiy/mark) so we can pull and push to confluence with mark's extended markdown format.
 
 ## Usage
 
