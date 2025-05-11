@@ -2,9 +2,9 @@
 
 A command line program for synchronizing Confluence pages with a local file system.
 
-Future plans to integrate with the parser that powers [mark](https://github.com/kovetskiy/mark) so we can pull and push to confluence with mark's extended markdown format.
-
-Maybe a custom Markdown Flavor based on [ADf](https://developer.atlassian.com/cloud/jira/platform/apis/document/structure/). See the [ADF Playground](https://developer.atlassian.com/cloud/jira/platform/apis/document/playground/) for a better idea of why this might be useful.
+- Future plans to integrate with the parser that powers [mark](https://github.com/kovetskiy/mark) so we can pull and push to confluence with mark's extended markdown format.
+  - Maybe a custom Markdown Flavor based on [ADF](https://developer.atlassian.com/cloud/jira/platform/apis/document/structure/). 
+  - See the [ADF Playground](https://developer.atlassian.com/cloud/jira/platform/apis/document/playground/) for a better idea of why this might be useful.
 
 ## Usage
 
